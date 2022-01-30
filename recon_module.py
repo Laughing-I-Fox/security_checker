@@ -64,8 +64,13 @@ def arp_scan(ip):
     result = []
 
     for sent, received in ans:
-        result.append({'IP': received.psrc, 'MAC': received.hwsrc})
+        if received.hwsrc not in 'MAC':
+            result.append({'IP': received.psrc, 'MAC': received.hwsrc})
+        else:
+            continue
     print(result, file=local_dev)
+    for i in result:
+        print(i['MAC'])
     # print(result[0]['MAC'])
 
 
